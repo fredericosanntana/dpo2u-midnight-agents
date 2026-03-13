@@ -1,38 +1,30 @@
-pragma language_version >= 0.19;
+pragma language_version >= 0.21.0;
 import CompactStandardLibrary;
 
-export ledger agents: Map<Bytes<32>, AgentRecord>;
+export ledger agent_count: Counter;
+export ledger agent_statuses: Map<Bytes<32>, Uint<8>>;
+export ledger agent_roles: Map<Bytes<32>, Bytes<32>>;
 
-struct AgentRecord {
-  status: Uint<8>,      // 1 = active, 0 = inactive
-  role: Bytes<32>,      // "auditor", "deployer", etc.
-  timestamp: Uint<64>
-}
-
-// Registers a new agent in the Ledger
 export circuit registerAgent(
   agent_did: Bytes<32>,
   role: Bytes<32>
 ): [] {
-  // At the moment (MVP), any identity can register an agent
-  // In production, an Admin Identity check would go here.
-  
-  agents[agent_did] = AgentRecord {
-    status: 1,
-    role: role,
-    timestamp: currentTimestamp()
-  };
+  agent_statuses.insert(disclose(agent_did), disclose(1 as Uint<8>));
+  agent_roles.insert(disclose(agent_did), disclose(role));
+  agent_count.increment(1);
 }
 
-// Blocks/deactivates an agent
 export circuit deactivateAgent(
   agent_did: Bytes<32>
 ): [] {
-  // Only update if it exists
-  const record = agents[agent_did];
-  agents[agent_did] = AgentRecord {
-    status: 0,
-    role: record.role,
-    timestamp: currentTimestamp()
-  };
+  assert(agent_statuses.member(disclose(agent_did)), "Agent not registered");
+  agent_statuses.insert(disclose(agent_did), disclose(0 as Uint<8>));
+}
+
+export circuit isActive(agent_did: Bytes<32>): Uint<8> {
+  return agent_statuses.lookup(disclose(agent_did));
+}
+
+export circuit getAgentCount(): Uint<64> {
+  return agent_count;
 }

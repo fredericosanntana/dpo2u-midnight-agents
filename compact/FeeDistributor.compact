@@ -1,28 +1,32 @@
-/**
- * Fee Distributor DPO2U (Arquitetura Compact/Midnight)
- * Responsável por orquestrar repasses de valores do Protocolo B2B para $NIGHT (Self-Funding).
- * Os clientes corporativos emitem as transações após o compliance e este contrato fatia.
- */
-pragma language_version >= 0.19;
+pragma language_version >= 0.21.0;
 import CompactStandardLibrary;
 
-export ledger expert_fee_pool: Uint<64>;
-export ledger auditor_fee_pool: Uint<64>;
+export ledger expert_fee_pool: Counter;
+export ledger auditor_fee_pool: Counter;
+export ledger total_distributed: Counter;
 
+// Caller computes the 40/60 split off-chain, contract validates
 export circuit distributeComplianceFee(
-  company_id: Bytes<32>,
-  expert_agent_did: Bytes<32>,
-  auditor_agent_did: Bytes<32>,
-  amount_night: Uint<64>
+  expert_share: Uint<16>,
+  auditor_share: Uint<16>
 ): [] {
-  // Validando se o Fee pago e > 0
-  assert(amount_night > 0, "Fee must be greater than zero");
-
-  // Divisão: 40% para geração (Expert), 60% para provador ZK (Auditor)
-  // expert_fee_pool = expert_fee_pool + (amount_night * 4 / 10);
-  // auditor_fee_pool = auditor_fee_pool + (amount_night * 6 / 10);
+  assert(expert_share > 0 as Uint<16>, "Expert share must be > 0");
+  assert(auditor_share > 0 as Uint<16>, "Auditor share must be > 0");
+  // Enforce 40/60 ratio: expert * 3 == auditor * 2
+  assert(disclose(expert_share) * 3 == disclose(auditor_share) * 2, "Must be 40/60 split");
+  expert_fee_pool.increment(disclose(expert_share));
+  auditor_fee_pool.increment(disclose(auditor_share));
+  total_distributed.increment(disclose(expert_share + auditor_share as Uint<16>));
 }
 
-export circuit getAuditorPools(): Uint<64> {
+export circuit getExpertPool(): Uint<64> {
+  return expert_fee_pool;
+}
+
+export circuit getAuditorPool(): Uint<64> {
   return auditor_fee_pool;
+}
+
+export circuit getTotalDistributed(): Uint<64> {
+  return total_distributed;
 }
