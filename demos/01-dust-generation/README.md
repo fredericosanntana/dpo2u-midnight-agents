@@ -1,4 +1,4 @@
-# Demo 3: DUST Generation Cycle
+# Demo 1: DUST Generation Cycle
 
 Simulates the Midnight Network's stake-to-earn mechanism where agents stake $NIGHT to generate $DUST for operations.
 
@@ -12,7 +12,9 @@ Simulates the Midnight Network's stake-to-earn mechanism where agents stake $NIG
 ## Run
 
 ```bash
-npx hardhat run demos/03-dust-generation/run.ts
+npm run demo:dust
+# or
+ts-node demos/01-dust-generation/run.ts
 ```
 
 ## Key concepts

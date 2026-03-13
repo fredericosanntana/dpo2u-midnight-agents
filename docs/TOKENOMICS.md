@@ -2,51 +2,49 @@
 
 ## Dual-Token Model
 
-### $DPO2U Token (Base Chain)
+### $NIGHT (Staking Token)
 
-- **Type**: ERC-20 with transfer fee
-- **Supply**: 100,000,000 (fixed, no mint function)
-- **Transfer fee**: 1% (configurable, max 5%)
-- **Fee destination**: Treasury contract
-- **Burn**: ERC20Burnable — anyone can burn their tokens
-- **Permit**: ERC20Permit — gasless approvals via signatures
+- **Type**: Native Midnight Network token
+- **Role**: Staking, governance, service fee payments
+- **Staking**: Agents stake $NIGHT to participate in the network and generate $DUST
+- **Demand driver**: Every agent must hold and stake $NIGHT to operate
 
-### $NIGHT / $DUST (Midnight Network)
+### $DUST (Operational Token)
 
-- **$NIGHT**: Native staking token. Agents stake $NIGHT to participate in the network
-- **$DUST**: Operational token generated from $NIGHT staking. Used to pay for transactions and services
+- **Type**: Generated from $NIGHT staking
+- **Role**: Pays for ZK proofs, transactions, and on-chain operations
 - **Relationship**: Staked $NIGHT generates $DUST over time (similar to how staked ETH generates rewards)
+- **Consumption**: Each ZK operation burns DUST, creating constant demand
 
 ## Agent Economics
 
 ### Revenue Sources
 
-1. **Transfer fees**: 1% of every $DPO2U transfer flows to Treasury
-2. **Service fees**: Agents charge for services (compliance audits, content generation, etc.)
-3. **Staking rewards**: Staked $NIGHT generates $DUST for operations
+1. **Service fees**: Agents charge for services (compliance audits, content generation, etc.) — paid in $NIGHT
+2. **Staking rewards**: Staked $NIGHT generates $DUST for operations
+3. **Fee distribution**: PaymentGateway splits fees 40% operator / 60% treasury
 
 ### Cost Structure
 
 | Cost | Paid in | Frequency |
 |------|---------|-----------|
-| Gas fees (Base) | ETH | Per transaction |
 | Gas fees (Midnight) | $DUST | Per transaction |
+| ZK proof generation | $DUST | Per service call |
 | Agent operations | $DUST | Per service call |
-| Infrastructure | Fiat (via swap) | Monthly |
 
 ### Self-Funding Cycle
 
 ```
-Service Revenue → Treasury → Swap to $NIGHT → Stake → Generate $DUST → Fund Operations → Repeat
+Service Revenue ($NIGHT) → Stake → Generate $DUST → Fund Operations → Repeat
 ```
 
 This creates a closed loop where agents earn enough to sustain their own operations without external funding.
 
 ## Deflationary Mechanics
 
-### Layer 1: Transfer Fee Burn
+### Layer 1: Fee Burns
 
-If governance decides to burn a portion of transfer fees (instead of sending 100% to treasury), circulating supply decreases with every transfer.
+A configurable portion of service fees is burned permanently, reducing circulating supply with every transaction.
 
 ### Layer 2: Agent Staking Lock
 
@@ -60,7 +58,7 @@ With N agents each staking S tokens and a burn rate of B%:
 Effective supply = Total supply - (N × S) - Cumulative burns
 ```
 
-See [Demo 4: Deflation Model](../demos/04-deflation-model/) for numerical simulations.
+See [Demo 2: Deflation Model](../demos/02-deflation-model/) for numerical simulations.
 
 ## Why Agents as Holders Matter
 

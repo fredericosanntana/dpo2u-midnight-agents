@@ -1,14 +1,13 @@
 /**
- * Demo 4: Deflation Model Simulation
+ * Demo 2: Deflation Model Simulation
  *
- * The killer demo — numerical simulation of two-layer deflation:
- *   Layer 1: Transfer fee burns reduce circulating supply
- *   Layer 2: Agent staking locks tokens out of circulation
+ * Numerical simulation of agent-driven deflation on Midnight Network:
+ *   - Agent staking locks $NIGHT out of circulation
+ *   - Fee burns reduce circulating supply permanently
  *
  * Models: N agents × M assessments → supply impact over time
  *
- * Run: ts-node demos/04-deflation-model/run.ts
- *   or: npx hardhat run demos/04-deflation-model/run.ts
+ * Run: ts-node demos/02-deflation-model/run.ts
  */
 
 // === Configuration ===
@@ -17,13 +16,13 @@ interface Scenario {
   name: string;
   agentGrowthPerMonth: number;  // new agents joining per month
   assessmentsPerAgent: number;  // assessments per agent per month
-  feePerAssessment: number;     // $DPO2U fee per assessment
+  feePerAssessment: number;     // $NIGHT fee per assessment
   stakePerAgent: number;        // $NIGHT staked per agent
-  burnRateBps: number;          // basis points of transfer fees burned (0 = all to treasury)
+  burnRateBps: number;          // basis points of service fees burned
 }
 
-const TOTAL_SUPPLY = 100_000_000; // 100M DPO2U
-const TRANSFER_FEE_BPS = 100;    // 1%
+const TOTAL_SUPPLY = 100_000_000; // 100M $NIGHT
+const SERVICE_FEE_BPS = 500;     // 5% service fee
 const MONTHS_TO_SIMULATE = 24;   // 2 years
 
 const scenarios: Scenario[] = [
@@ -76,14 +75,14 @@ function simulate(scenario: Scenario) {
     const monthlyAssessments = agents * scenario.assessmentsPerAgent;
     const monthlyVolume = monthlyAssessments * scenario.feePerAssessment;
 
-    // Transfer fees collected
-    const monthlyFees = (monthlyVolume * TRANSFER_FEE_BPS) / 10000;
+    // Service fees collected
+    const monthlyFees = (monthlyVolume * SERVICE_FEE_BPS) / 10000;
 
-    // Portion burned (Layer 1 deflation)
+    // Portion burned (deflation)
     const burned = (monthlyFees * scenario.burnRateBps) / 10000;
     totalBurned += burned;
 
-    // Total staked (Layer 2 deflation)
+    // Total staked (staking lock deflation)
     const totalStaked = agents * scenario.stakePerAgent;
 
     // Effective circulating supply
@@ -113,9 +112,9 @@ function formatNumber(n: number): string {
 
 // === Main ===
 
-console.log("=== Demo 4: Deflation Model Simulation ===\n");
-console.log(`Total supply: ${formatNumber(TOTAL_SUPPLY)} DPO2U`);
-console.log(`Transfer fee: ${TRANSFER_FEE_BPS / 100}%`);
+console.log("=== Demo 2: Deflation Model Simulation ===\n");
+console.log(`Total supply: ${formatNumber(TOTAL_SUPPLY)} $NIGHT`);
+console.log(`Service fee: ${SERVICE_FEE_BPS / 100}%`);
 console.log(`Simulation: ${MONTHS_TO_SIMULATE} months\n`);
 
 for (const scenario of scenarios) {
@@ -123,8 +122,8 @@ for (const scenario of scenarios) {
 
   console.log(`\n--- Scenario: ${scenario.name} ---`);
   console.log(`Agent growth: +${scenario.agentGrowthPerMonth}/month | Assessments: ${scenario.assessmentsPerAgent}/agent/month`);
-  console.log(`Fee/assessment: ${scenario.feePerAssessment} DPO2U | Stake/agent: ${formatNumber(scenario.stakePerAgent)} NIGHT`);
-  console.log(`Burn rate: ${scenario.burnRateBps / 100}% of transfer fees\n`);
+  console.log(`Fee/assessment: ${scenario.feePerAssessment} $NIGHT | Stake/agent: ${formatNumber(scenario.stakePerAgent)} $NIGHT`);
+  console.log(`Burn rate: ${scenario.burnRateBps / 100}% of service fees\n`);
 
   // Header
   console.log("┌───────┬────────┬──────────────┬──────────────┬───────────────┬──────────┐");
@@ -149,8 +148,8 @@ for (const scenario of scenarios) {
 }
 
 console.log("\n--- Key Insight ---");
-console.log("Agent staking creates a FLOOR of locked tokens that grows linearly with adoption.");
-console.log("Combined with burn mechanics, this creates compounding deflation.");
+console.log("Agent staking creates a FLOOR of locked $NIGHT that grows linearly with adoption.");
+console.log("Combined with fee burn mechanics, this creates compounding deflation.");
 console.log("Unlike speculative holders, agents CANNOT unstake without losing operational capacity.");
 
-console.log("\n=== Demo 4 Complete ===");
+console.log("\n=== Demo 2 Complete ===");

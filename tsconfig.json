@@ -12,8 +12,6 @@
   },
   "include": [
     "./scripts/**/*.ts",
-    "./test/**/*.ts",
-    "./demos/**/*.ts",
-    "./hardhat.config.ts"
+    "./demos/**/*.ts"
   ]
 }

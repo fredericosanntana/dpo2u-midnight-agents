@@ -1,5 +1,5 @@
 /**
- * Demo 3: DUST Generation Cycle
+ * Demo 1: DUST Generation Cycle
  *
  * Simulates the stake → DUST generation → operate cycle:
  * - Agent stakes $NIGHT tokens
@@ -9,10 +9,8 @@
  *
  * This is a simulation — actual DUST generation happens on Midnight Network.
  *
- * Run: npx hardhat run demos/03-dust-generation/run.ts
+ * Run: ts-node demos/01-dust-generation/run.ts
  */
-
-import { ethers } from "hardhat";
 
 // Simulation parameters (based on Midnight Network economics)
 const DUST_PER_NIGHT_PER_DAY = 0.1; // 0.1 DUST per staked NIGHT per day
@@ -28,7 +26,7 @@ interface AgentState {
 }
 
 async function main() {
-  console.log("=== Demo 3: DUST Generation Cycle ===\n");
+  console.log("=== Demo 1: DUST Generation Cycle ===\n");
   console.log("Simulation of the Midnight Network stake → DUST → operate cycle.\n");
 
   // Define agents
@@ -60,7 +58,6 @@ async function main() {
       agent.dustBalance += dustGenerated;
 
       // Consume DUST for operations
-      const dustNeeded = agent.operationsPerDay * OPERATION_COST_DUST;
       const canAfford = Math.min(agent.operationsPerDay, Math.floor(agent.dustBalance / OPERATION_COST_DUST));
       agent.dustBalance -= canAfford * OPERATION_COST_DUST;
       agent.totalOperations += canAfford;
@@ -92,7 +89,7 @@ async function main() {
   }
   console.log("└─────────────────────┴────────────┴───────────────────┘");
 
-  console.log("\n=== Demo 3 Complete ===");
+  console.log("\n=== Demo 1 Complete ===");
 }
 
 main().catch((error) => {
