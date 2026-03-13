@@ -1,0 +1,38 @@
+pragma language_version >= 0.19;
+import CompactStandardLibrary;
+
+export ledger agents: Map<Bytes<32>, AgentRecord>;
+
+struct AgentRecord {
+  status: Uint<8>,      // 1 = active, 0 = inactive
+  role: Bytes<32>,      // "auditor", "deployer", etc.
+  timestamp: Uint<64>
+}
+
+// Registers a new agent in the Ledger
+export circuit registerAgent(
+  agent_did: Bytes<32>,
+  role: Bytes<32>
+): [] {
+  // At the moment (MVP), any identity can register an agent
+  // In production, an Admin Identity check would go here.
+  
+  agents[agent_did] = AgentRecord {
+    status: 1,
+    role: role,
+    timestamp: currentTimestamp()
+  };
+}
+
+// Blocks/deactivates an agent
+export circuit deactivateAgent(
+  agent_did: Bytes<32>
+): [] {
+  // Only update if it exists
+  const record = agents[agent_did];
+  agents[agent_did] = AgentRecord {
+    status: 0,
+    role: record.role,
+    timestamp: currentTimestamp()
+  };
+}

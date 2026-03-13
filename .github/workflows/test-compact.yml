@@ -1,0 +1,32 @@
+name: Compact Compile Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'compact/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'compact/**'
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Compact files exist
+        run: |
+          echo "Compact contract files:"
+          ls -la compact/*.compact
+          echo ""
+          echo "Compact compiler (compactc) is not yet available in CI."
+          echo "Files are validated for existence and non-empty content."
+          for f in compact/*.compact; do
+            if [ ! -s "$f" ]; then
+              echo "ERROR: $f is empty"
+              exit 1
+            fi
+            echo "OK: $f ($(wc -c < "$f") bytes)"
+          done

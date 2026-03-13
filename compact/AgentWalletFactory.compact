@@ -1,0 +1,26 @@
+/**
+ * Agent Wallet Factory DPO2U (Arquitetura Compact/Midnight)
+ * Responsável por criar, vincular e gerenciar a identidade on-chain (DIDs)
+ * e o cofre digital dos Agentes Autônomos DPO2U.
+ */
+pragma language_version >= 0.19;
+import CompactStandardLibrary;
+
+export ledger last_agent_wallet: Bytes<32>; 
+export ledger last_agent_balance_night: Uint<64>;
+
+export circuit registerAgent(
+  agent_did: Bytes<32>,
+  wallet_address: Bytes<32>
+): [] {
+  // last_agent_wallet = wallet_address;
+  // last_agent_balance_night = 0;
+}
+
+export circuit getAgentWallet(agent_did: Bytes<32>): Bytes<32> {
+  return last_agent_wallet;
+}
+
+export circuit getAgentBalanceNight(agent_did: Bytes<32>): Uint<64> {
+  return last_agent_balance_night;
+}

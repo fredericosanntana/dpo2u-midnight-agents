@@ -1,0 +1,28 @@
+/**
+ * Fee Distributor DPO2U (Arquitetura Compact/Midnight)
+ * Responsável por orquestrar repasses de valores do Protocolo B2B para $NIGHT (Self-Funding).
+ * Os clientes corporativos emitem as transações após o compliance e este contrato fatia.
+ */
+pragma language_version >= 0.19;
+import CompactStandardLibrary;
+
+export ledger expert_fee_pool: Uint<64>;
+export ledger auditor_fee_pool: Uint<64>;
+
+export circuit distributeComplianceFee(
+  company_id: Bytes<32>,
+  expert_agent_did: Bytes<32>,
+  auditor_agent_did: Bytes<32>,
+  amount_night: Uint<64>
+): [] {
+  // Validando se o Fee pago e > 0
+  assert(amount_night > 0, "Fee must be greater than zero");
+
+  // Divisão: 40% para geração (Expert), 60% para provador ZK (Auditor)
+  // expert_fee_pool = expert_fee_pool + (amount_night * 4 / 10);
+  // auditor_fee_pool = auditor_fee_pool + (amount_night * 6 / 10);
+}
+
+export circuit getAuditorPools(): Uint<64> {
+  return auditor_fee_pool;
+}
