@@ -177,8 +177,25 @@ async function buildWallet(config: NetworkConfig, seed: string) {
 // Wait for sync
 // ------------------------------------------------------------------
 async function waitForSync(wallet: WalletFacade) {
-  console.log('[3/6] Syncing wallet with network...');
-  await wallet.waitForSyncedState();
+  console.log('[3/6] Syncing wallet with network (first sync may take 10-30 min)...');
+
+  // Log progress while waiting
+  const sub = wallet.state().pipe(
+    Rx.throttleTime(15_000),
+  ).subscribe((state) => {
+    const synced = state.isSynced ? 'SYNCED' : 'syncing...';
+    const shieldedCoins = state.shielded?.availableCoins?.length ?? 0;
+    const nativeToken = ledgerLib.unshieldedToken().raw;
+    const unshieldedBal = state.unshielded?.balances?.[nativeToken] ?? 0n;
+    const dustBal = state.dust?.availableCoins?.length ?? 0;
+    console.log(`  [${new Date().toISOString().slice(11,19)}] ${synced} | unshielded: ${unshieldedBal} | shielded coins: ${shieldedCoins} | dust coins: ${dustBal}`);
+  });
+
+  try {
+    await wallet.waitForSyncedState();
+  } finally {
+    sub.unsubscribe();
+  }
   console.log('  Wallet synced.');
 }
 
