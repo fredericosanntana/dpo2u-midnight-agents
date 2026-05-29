@@ -1,26 +1,60 @@
 pragma language_version >= 0.21.0;
 import CompactStandardLibrary;
 
-export ledger attestation_scores: Map<Bytes<32>, Uint<64>>;
-export ledger attestation_dids: Map<Bytes<32>, Bytes<32>>;
-export ledger attestation_cids: Map<Bytes<32>, Bytes<32>>;
+// DPO2U ComplianceRegistry — score-private / proof-public attestation.
+//
+// Ported from the Stellar ZK reference architecture (zk-verifier CBOOYCOU…FMNT):
+//   - `score` is a PRIVATE input — it is NEVER disclosed and NEVER written to a ledger.
+//     The proof attests the predicate `score >= threshold` without revealing the score.
+//   - `threshold` and `context` are PUBLIC (disclosed), matching Stellar's public signals
+//     `[threshold, context]`.
+//   - `context = H(org || jurisdiction || nonce)` is computed off-chain (domain-separated)
+//     and bound on-chain, with anti-replay enforced at the ledger (defense-in-depth the
+//     Stellar version — cryptographic-only — lacks).
+// Canonical-VK pinning (Stellar T1 fix) is solved by construction here: the circuit compiles
+// INTO this contract, so the verifying key is pinned by the deployed contract address. No
+// entrypoint accepts a caller-supplied VK/circuit, so T1 cannot exist.
+
+// Public, on-chain audit trail. The score itself is never part of this state.
+export ledger attestation_verdicts: Map<Bytes<32>, Uint<8>>;     // company_id -> 1 (passed)
+export ledger attestation_dids: Map<Bytes<32>, Bytes<32>>;       // company_id -> attesting agent DID
+export ledger attestation_cids: Map<Bytes<32>, Bytes<32>>;       // company_id -> policy CID
+export ledger attestation_thresholds: Map<Bytes<32>, Uint<8>>;   // company_id -> public threshold met
+export ledger attestation_contexts: Map<Bytes<32>, Bytes<32>>;   // company_id -> public anti-replay context
+export ledger used_contexts: Map<Bytes<32>, Uint<8>>;            // Set semantics (no Set type in 0.29.0)
 export ledger attestation_count: Counter;
 
-export circuit registerAttestation(
+export circuit attestCompliance(
   company_id: Bytes<32>,
   agent_did: Bytes<32>,
   policy_cid: Bytes<32>,
-  score: Uint<64>
+  threshold: Uint<8>,
+  context: Bytes<32>,
+  score: Uint<8>
 ): [] {
+  // Anti-replay: a given context (org||jurisdiction||nonce) may be sealed only once.
+  assert(!used_contexts.member(disclose(context)), "Replay: context already used");
+  // Score hygiene: a compliance score is a 0-100 percentage. `score` stays private.
   assert(score <= 100, "Invalid compliance score, must be bounded to 0-100%");
-  attestation_scores.insert(disclose(company_id), disclose(score));
+  // Proof-public predicate: prove score >= threshold WITHOUT disclosing the score.
+  assert(score >= threshold, "Score below threshold");
+  // Bind the context and write the public audit trail. The score is never written.
+  used_contexts.insert(disclose(context), disclose(1 as Uint<8>));
+  attestation_verdicts.insert(disclose(company_id), disclose(1 as Uint<8>));
   attestation_dids.insert(disclose(company_id), disclose(agent_did));
   attestation_cids.insert(disclose(company_id), disclose(policy_cid));
+  attestation_thresholds.insert(disclose(company_id), disclose(threshold));
+  attestation_contexts.insert(disclose(company_id), disclose(context));
   attestation_count.increment(1);
 }
 
-export circuit getComplianceScore(company_id: Bytes<32>): Uint<64> {
-  return attestation_scores.lookup(disclose(company_id));
+// Non-leaking reads. There is intentionally no getComplianceScore — the score is private.
+export circuit hasAttestation(company_id: Bytes<32>): Uint<8> {
+  return attestation_verdicts.lookup(disclose(company_id));
+}
+
+export circuit getAttestationThreshold(company_id: Bytes<32>): Uint<8> {
+  return attestation_thresholds.lookup(disclose(company_id));
 }
 
 export circuit getAttestationCount(): Uint<64> {
