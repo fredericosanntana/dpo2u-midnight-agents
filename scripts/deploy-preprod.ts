@@ -110,15 +110,7 @@ async function createWallet(cfg: NetCfg, seed: string) {
     dust: (c: any) => DustWallet(c).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
   });
   await wallet.start(shieldedSecretKeys, dustSecretKey);
-  // SKIP-SHIELDED: the shielded full-history sync OOMs on preprod (no checkpoint knob in any SDK
-  // gen) and we don't need shielded coins to deploy (fees = DUST, balancing = unshielded NIGHT).
-  // Capture coin/encryption public keys from the first emission, then STOP the shielded scan.
-  const first: any = await Rx.firstValueFrom(wallet.state());
-  const coinPublicKey = first.shielded.coinPublicKey.toHexString();
-  const encryptionPublicKey = first.shielded.encryptionPublicKey.toHexString();
-  await wallet.shielded.stop();
-  console.log('  [shielded] captured coin pubkey + stopped scan (skip-shielded mode)');
-  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore, coinPublicKey, encryptionPublicKey };
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
 }
 
 // Sign unshielded transaction intents (required by the 4.x unproven-tx workflow).
@@ -148,24 +140,49 @@ function signTransactionIntents(
   }
 }
 
-async function waitForUnshielded(wallet: any) {
-  console.log('[sync] waiting for unshielded funds (shielded skipped)...');
+async function waitForSync(wallet: any) {
+  console.log('[sync] full sync incl. shielded history (memory-heavy — give it RAM + time)...');
   const nt = ledger.unshieldedToken().raw;
-  const sub = wallet.state().pipe(Rx.throttleTime(8_000)).subscribe((s: any) => {
-    console.log(`  [${new Date().toISOString().slice(11, 19)}] unshielded:${s.unshielded?.balances?.[nt] ?? 0n} | dust:${s.dust?.availableCoins?.length ?? 0}`);
+  const sub = wallet.state().pipe(Rx.throttleTime(10_000)).subscribe((s: any) => {
+    console.log(`  [${new Date().toISOString().slice(11, 19)}] ${s.isSynced ? 'SYNCED' : 'syncing'} | unshielded:${s.unshielded?.balances?.[nt] ?? 0n} | dustCoins:${s.dust?.availableCoins?.length ?? 0}`);
   });
-  const state = await Rx.firstValueFrom(
-    wallet.state().pipe(Rx.filter((s: any) => (s.unshielded?.balances?.[nt] ?? 0n) > 0n)),
-  );
+  const state = await Rx.firstValueFrom(wallet.state().pipe(Rx.filter((s: any) => s.isSynced)));
   sub.unsubscribe();
-  console.log('[sync] unshielded funds visible.');
+  console.log('[sync] fully synced.');
   return state;
+}
+
+// DUST: faucet gives only unshielded NIGHT (dust:0). Register NIGHT UTxOs for dust generation,
+// then wait for dust to accrue before any fee-paying tx. Canonical headless flow (per IOG mentor):
+//   register → finalizeRecipe → submitTransaction → wait until dust.balance(now) > 0n.
+async function ensureDust(ctx: any) {
+  const dustOf = (s: any) => { try { return s.dust.balance(new Date()) as bigint; } catch { return 0n; } };
+  let state = await Rx.firstValueFrom(ctx.wallet.state());
+  if (dustOf(state) > 0n) { console.log(`[dust] already have dust: ${dustOf(state)}`); return; }
+
+  const nightUtxos = (state.unshielded.availableCoins ?? []).filter((u: any) => !u.meta?.registeredForDustGeneration);
+  console.log(`[dust] balance 0 — registering ${nightUtxos.length} NIGHT UTxO(s) for dust generation...`);
+  if (nightUtxos.length === 0) { console.log('[dust] no unregistered NIGHT UTxOs; cannot generate dust'); return; }
+
+  const vk = ctx.unshieldedKeystore.getPublicKey();
+  const signFn = (payload: Uint8Array) => ctx.unshieldedKeystore.signData(payload);
+  const recipe = await ctx.wallet.registerNightUtxosForDustGeneration(nightUtxos, vk, signFn);
+  const tx = await ctx.wallet.finalizeRecipe(recipe);
+  const txId = await ctx.wallet.submitTransaction(tx);
+  console.log(`[dust] registration tx submitted: ${txId} — waiting for dust to accrue (~1-2 min)...`);
+
+  const sub = ctx.wallet.state().pipe(Rx.throttleTime(15_000)).subscribe((s: any) => {
+    console.log(`  [dust ${new Date().toISOString().slice(11, 19)}] balance: ${dustOf(s)}`);
+  });
+  await Rx.firstValueFrom(ctx.wallet.state().pipe(Rx.filter((s: any) => dustOf(s) > 0n)));
+  sub.unsubscribe();
+  console.log('[dust] dust available — proceeding to deploy.');
 }
 
 function makeWalletProvider(ctx: Awaited<ReturnType<typeof createWallet>>, state: any) {
   return {
-    getCoinPublicKey: () => ctx.coinPublicKey,
-    getEncryptionPublicKey: () => ctx.encryptionPublicKey,
+    getCoinPublicKey: () => state.shielded.coinPublicKey.toHexString(),
+    getEncryptionPublicKey: () => state.shielded.encryptionPublicKey.toHexString(),
     async balanceTx(tx: any, ttl?: Date) {
       const recipe = await ctx.wallet.balanceUnboundTransaction(
         tx,
@@ -181,10 +198,16 @@ function makeWalletProvider(ctx: Awaited<ReturnType<typeof createWallet>>, state
   };
 }
 
-function makeProviders(walletProvider: any, cfg: NetCfg, zkPath: string, storeName: string) {
+function makeProviders(walletProvider: any, cfg: NetCfg, zkPath: string, storeName: string, accountId: string) {
   const zkConfigProvider = new NodeZkConfigProvider(zkPath);
   return {
-    privateStateProvider: levelPrivateStateProvider({ privateStateStoreName: storeName, walletProvider }),
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: storeName,
+      walletProvider,
+      // midnight-js 4.x: private-state store needs a password provider (>=16 chars) + an accountId
+      privateStoragePasswordProvider: () => process.env.PRIVATE_STATE_PASSWORD ?? 'dpo2u-local-dev-private-state-pw-2026',
+      accountId,
+    }),
     publicDataProvider: indexerPublicDataProvider(cfg.indexer, cfg.indexerWS),
     zkConfigProvider,
     proofProvider: httpClientProofProvider(cfg.proofServer, zkConfigProvider),
@@ -193,13 +216,13 @@ function makeProviders(walletProvider: any, cfg: NetCfg, zkPath: string, storeNa
   };
 }
 
-async function deployOne(walletProvider: any, cfg: NetCfg, entry: { name: string; mod: any }) {
+async function deployOne(walletProvider: any, cfg: NetCfg, entry: { name: string; mod: any }, accountId: string) {
   const zkPath = buildPath(entry.name);
   const compiled = CompiledContract.make(entry.name, entry.mod.Contract).pipe(
     CompiledContract.withVacantWitnesses,
     CompiledContract.withCompiledFileAssets(zkPath),
   );
-  const providers = makeProviders(walletProvider, cfg, zkPath, `${entry.name}-state`);
+  const providers = makeProviders(walletProvider, cfg, zkPath, `${entry.name}-state`, accountId);
   console.log(`\n[deploy] ${entry.name} — proving + submitting...`);
   const contract = await deployContract(providers as any, {
     compiledContract: compiled,
@@ -245,20 +268,21 @@ async function main() {
 
   const seed = values.seed ?? process.env.MIDNIGHT_SEED ?? toHex(Buffer.from(generateRandomSeed()));
   const ctx = await createWallet(cfg, seed);
-  const addr = ctx.unshieldedKeystore.getBech32Address();
+  const addr = String(ctx.unshieldedKeystore.getBech32Address());
   console.log(`  wallet: ${addr}`);
 
   if (values.faucet && cfg.faucetUrl) await requestFaucet(cfg.faucetUrl, addr);
 
-  const state = await waitForUnshielded(ctx.wallet);
+  const state = await waitForSync(ctx.wallet);
   const nt = ledger.unshieldedToken().raw;
   console.log(`  tNIGHT balance: ${state.unshielded?.balances?.[nt] ?? 0n}`);
+  await ensureDust(ctx);
   const walletProvider = makeWalletProvider(ctx, state);
 
   const contracts = values.all ? ALL_CONTRACTS : [ALL_CONTRACTS[0]];
   const results: any[] = [];
   for (const c of contracts) {
-    try { results.push(await deployOne(walletProvider, cfg, c)); }
+    try { results.push(await deployOne(walletProvider, cfg, c, addr)); }
     catch (e: any) { console.error(`  ${c.name} FAILED: ${e?.message ?? e}`); results.push({ name: c.name, error: String(e?.message ?? e) }); }
   }
 

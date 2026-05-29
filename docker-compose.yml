@@ -1,6 +1,6 @@
 services:
   midnight-node:
-    image: midnightntwrk/midnight-node:0.21.0
+    image: midnightntwrk/midnight-node:0.22.5
     ports:
       - "9944:9944"
     environment:
@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
 
   indexer:
-    image: midnightntwrk/indexer-standalone:4.0.0-rc.4
+    image: midnightntwrk/indexer-standalone:4.0.1
     ports:
       - "8088:8088"
     volumes:
@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
 
   proof-server:
-    image: midnightntwrk/proof-server:7.0.0
+    image: midnightntwrk/proof-server:8.0.3
     ports:
       - "6300:6300"
     command: ["midnight-proof-server", "-v"]
