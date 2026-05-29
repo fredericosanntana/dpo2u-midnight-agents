@@ -234,6 +234,61 @@ async function deployOne(walletProvider: any, cfg: NetCfg, entry: { name: string
   return { name: entry.name, contractAddress: d.contractAddress, blockHeight: d.blockHeight, txId: d.txId };
 }
 
+// --loop: exercise the full self-funding cycle on the already-deployed contracts (callTx).
+function b32(s: string): Uint8Array {
+  const buf = Buffer.alloc(32);
+  Buffer.from(s, 'utf-8').copy(buf, 0, 0, Math.min(s.length, 32));
+  return new Uint8Array(buf);
+}
+
+async function runLoop(walletProvider: any, cfg: NetCfg, accountId: string) {
+  const dep = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', `deployment-${getNetworkId() === 'undeployed' ? 'standalone' : 'preprod'}.json`), 'utf8'));
+  const addrOf: Record<string, string> = {};
+  for (const c of dep.contracts) if (c.contractAddress) addrOf[c.name] = c.contractAddress;
+
+  async function join(name: string) {
+    const entry = ALL_CONTRACTS.find((c) => c.name === name)!;
+    const zkPath = buildPath(name);
+    const compiled = CompiledContract.make(name, entry.mod.Contract).pipe(
+      CompiledContract.withVacantWitnesses, CompiledContract.withCompiledFileAssets(zkPath),
+    );
+    const providers = makeProviders(walletProvider, cfg, zkPath, `${name}-state`, accountId);
+    return findDeployedContract(providers as any, {
+      contractAddress: addrOf[name], compiledContract: compiled,
+      privateStateId: `${name}PrivateState`, initialPrivateState: {},
+    });
+  }
+  const tx = (label: string, r: any) => console.log(`  [loop] ${label}: tx ${r?.public?.txId ?? r?.txId} (block ${r?.public?.blockHeight ?? '?'})`);
+
+  const agentDid = b32('did:dpo2u:agent:001');
+  const company = b32('acme-corp-loop');
+  const ctx32 = b32('ctx:acme||LGPD||nonce-loop-1');
+
+  console.log('\n=== SELF-FUNDING LOOP (on-chain) ===');
+  console.log('[loop] 1/5 AgentRegistry.registerAgent (agent identity on-chain)');
+  const ar: any = await join('AgentRegistry');
+  tx('registerAgent', await ar.callTx.registerAgent(agentDid, b32('compliance-agent')));
+
+  console.log('[loop] 2/5 AgentWalletFactory.registerAgent (bind agent -> wallet)');
+  const awf: any = await join('AgentWalletFactory');
+  tx('registerAgent', await awf.callTx.registerAgent(agentDid, b32(accountId)));
+
+  console.log('[loop] 3/5 PaymentGateway: stake $NIGHT + deposit to treasury');
+  const pg: any = await join('PaymentGateway');
+  tx('stakeTokens(1000)', await pg.callTx.stakeTokens(1000n));
+  tx('depositToTreasury(500)', await pg.callTx.depositToTreasury(500n));
+
+  console.log('[loop] 4/5 ComplianceRegistry.attestCompliance (ZK: score 85 private, threshold 70 public)');
+  const cr: any = await join('ComplianceRegistry');
+  tx('attestCompliance', await cr.callTx.attestCompliance(company, agentDid, b32('bafy-policy-cid'), 70n, ctx32, 85n));
+
+  console.log('[loop] 5/5 FeeDistributor.distributeComplianceFee (40/60 split)');
+  const fd: any = await join('FeeDistributor');
+  tx('distributeComplianceFee(40,60)', await fd.callTx.distributeComplianceFee(40n, 60n));
+
+  console.log('=== LOOP COMPLETE — stake -> attest(ZK) -> fee-split exercised on-chain ===');
+}
+
 async function requestFaucet(url: string, address: string) {
   try {
     console.log('[faucet] requesting tNIGHT...');
@@ -252,6 +307,7 @@ async function main() {
       join: { type: 'string' },
       faucet: { type: 'boolean', default: false },
       all: { type: 'boolean', default: false },
+      loop: { type: 'boolean', default: false },
     },
   });
   const net = String(values.network);
@@ -278,6 +334,12 @@ async function main() {
   console.log(`  tNIGHT balance: ${state.unshielded?.balances?.[nt] ?? 0n}`);
   await ensureDust(ctx);
   const walletProvider = makeWalletProvider(ctx, state);
+
+  if (values.loop) {
+    await runLoop(walletProvider, cfg, addr);
+    try { await ctx.wallet.close?.(); } catch { /* ignore */ }
+    process.exit(0);
+  }
 
   const contracts = values.all ? ALL_CONTRACTS : [ALL_CONTRACTS[0]];
   const results: any[] = [];
