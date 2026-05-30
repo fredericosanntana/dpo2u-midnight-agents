@@ -24,6 +24,15 @@ export ledger attestation_contexts: Map<Bytes<32>, Bytes<32>>;   // company_id -
 export ledger used_contexts: Map<Bytes<32>, Uint<8>>;            // Set semantics (no Set type in 0.29.0)
 export ledger attestation_count: Counter;
 
+// Generic attestation registry (mirrors the Stellar anticorruption-attestation verdict+hash
+// model) so the shared pilot-gateway predicates deliver all 62 use cases through one contract.
+// Keyed by evidence_hash (the SHA-256 of the canonical evidence, unique per attestation).
+// verdict: 1 = PASS, 0 = FAIL, 2 = REVIEW. No PII on-chain — only hashes + verdict.
+export ledger usecase_verdicts: Map<Bytes<32>, Uint<8>>;         // evidence_hash -> verdict
+export ledger usecase_ids: Map<Bytes<32>, Bytes<32>>;            // evidence_hash -> use_case_id
+export ledger usecase_metadata: Map<Bytes<32>, Bytes<32>>;       // evidence_hash -> metadata_hash
+export ledger usecase_attestation_count: Counter;
+
 export circuit attestCompliance(
   company_id: Bytes<32>,
   agent_did: Bytes<32>,
@@ -59,4 +68,28 @@ export circuit getAttestationThreshold(company_id: Bytes<32>): Uint<8> {
 
 export circuit getAttestationCount(): Uint<64> {
   return attestation_count;
+}
+
+// Generic use-case attestation: the gateway computes the verdict off-chain (the 62 shared
+// predicates) and seals it here as verdict + hashes. This is the dual-chain parity path with
+// Stellar/Solana — same evidence/verdict model, no PII on-chain.
+export circuit attestUseCase(
+  use_case_id: Bytes<32>,
+  verdict: Uint<8>,
+  evidence_hash: Bytes<32>,
+  metadata_hash: Bytes<32>
+): [] {
+  assert(verdict <= 2, "Invalid verdict: 0=FAIL, 1=PASS, 2=REVIEW");
+  usecase_verdicts.insert(disclose(evidence_hash), disclose(verdict));
+  usecase_ids.insert(disclose(evidence_hash), disclose(use_case_id));
+  usecase_metadata.insert(disclose(evidence_hash), disclose(metadata_hash));
+  usecase_attestation_count.increment(1);
+}
+
+export circuit getUseCaseVerdict(evidence_hash: Bytes<32>): Uint<8> {
+  return usecase_verdicts.lookup(disclose(evidence_hash));
+}
+
+export circuit getUseCaseAttestationCount(): Uint<64> {
+  return usecase_attestation_count;
 }

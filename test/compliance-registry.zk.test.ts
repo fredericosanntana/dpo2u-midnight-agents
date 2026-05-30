@@ -114,7 +114,29 @@ check('(e) no attestation_scores ledger exists (score never disclosed)', () => {
   assert.equal('attestation_contexts' in L, true);
 });
 
-console.log(`\n${passed}/5 checks passed`);
+// (f) generic attestUseCase stores verdict by evidence_hash; getUseCaseVerdict reads it back
+check('(f) attestUseCase stores verdict, getUseCaseVerdict reads it back', () => {
+  const { contract, ctx } = setup();
+  const ucid = padTo32Bytes('lgpd_compliance_v1');
+  const evh = padTo32Bytes('evidence-hash-001');
+  const mdh = padTo32Bytes('metadata-hash-001');
+  const { context } = contract.circuits.attestUseCase(ctx, ucid, 1n, evh, mdh); // 1 = PASS
+  const v = contract.circuits.getUseCaseVerdict(context, evh);
+  assert.equal(v.result, 1n, 'verdict should read back as PASS(1)');
+  const L = ledger(context.currentQueryContext.state);
+  assert.equal(L.usecase_attestation_count, 1n, 'usecase attestation count should increment');
+});
+
+// (g) invalid verdict (>2) is rejected
+check('(g) attestUseCase rejects verdict > 2', () => {
+  const { contract, ctx } = setup();
+  assert.throws(
+    () => contract.circuits.attestUseCase(ctx, padTo32Bytes('x'), 3n, padTo32Bytes('e'), padTo32Bytes('m')),
+    /Invalid verdict/,
+  );
+});
+
+console.log(`\n${passed}/7 checks passed`);
 if (process.exitCode === 1) {
   console.log('RESULT: FAIL');
 } else {

@@ -241,6 +241,40 @@ function b32(s: string): Uint8Array {
   return new Uint8Array(buf);
 }
 
+function hexToBytes32(hex: string): Uint8Array {
+  const clean = hex.replace(/^0x/, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(clean)) throw new Error(`hexToBytes32: expected 64 hex chars, got ${clean.length}`);
+  return new Uint8Array(Buffer.from(clean, 'hex'));
+}
+
+// --attest: generic use-case attestation (the gateway/MCP dual-chain path). Joins the deployed
+// ComplianceRegistry and calls attestUseCase(use_case_id, verdict, evidence_hash, metadata_hash).
+// Prints a single machine-readable line `ATTEST_RESULT {json}` for the gateway MidnightDriver to parse.
+async function runAttest(walletProvider: any, cfg: NetCfg, accountId: string, a: {
+  useCaseId: string; verdict: number; evidenceHash: string; metadataHash: string;
+}) {
+  const dep = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', `deployment-${getNetworkId() === 'undeployed' ? 'standalone' : 'preprod'}.json`), 'utf8'));
+  const addr = dep.contracts.find((c: any) => c.name === 'ComplianceRegistry')?.contractAddress;
+  if (!addr) throw new Error('ComplianceRegistry not found in deployment json');
+  const entry = ALL_CONTRACTS.find((c) => c.name === 'ComplianceRegistry')!;
+  const zkPath = buildPath('ComplianceRegistry');
+  const compiled = CompiledContract.make('ComplianceRegistry', entry.mod.Contract).pipe(
+    CompiledContract.withVacantWitnesses, CompiledContract.withCompiledFileAssets(zkPath),
+  );
+  const providers = makeProviders(walletProvider, cfg, zkPath, 'ComplianceRegistry-state', accountId);
+  const cr: any = await findDeployedContract(providers as any, {
+    contractAddress: addr, compiledContract: compiled,
+    privateStateId: 'ComplianceRegistryPrivateState', initialPrivateState: {},
+  });
+  const r = await cr.callTx.attestUseCase(
+    b32(a.useCaseId), BigInt(a.verdict), hexToBytes32(a.evidenceHash), hexToBytes32(a.metadataHash),
+  );
+  const d = r?.public ?? {};
+  console.log('ATTEST_RESULT ' + JSON.stringify({
+    txId: d.txId, blockHeight: d.blockHeight, contractAddress: addr,
+  }));
+}
+
 async function runLoop(walletProvider: any, cfg: NetCfg, accountId: string) {
   const dep = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', `deployment-${getNetworkId() === 'undeployed' ? 'standalone' : 'preprod'}.json`), 'utf8'));
   const addrOf: Record<string, string> = {};
@@ -308,6 +342,11 @@ async function main() {
       faucet: { type: 'boolean', default: false },
       all: { type: 'boolean', default: false },
       loop: { type: 'boolean', default: false },
+      attest: { type: 'boolean', default: false },
+      'use-case-id': { type: 'string' },
+      verdict: { type: 'string' },
+      'evidence-hash': { type: 'string' },
+      'metadata-hash': { type: 'string' },
     },
   });
   const net = String(values.network);
@@ -334,6 +373,17 @@ async function main() {
   console.log(`  tNIGHT balance: ${state.unshielded?.balances?.[nt] ?? 0n}`);
   await ensureDust(ctx);
   const walletProvider = makeWalletProvider(ctx, state);
+
+  if (values.attest) {
+    await runAttest(walletProvider, cfg, addr, {
+      useCaseId: String(values['use-case-id'] ?? ''),
+      verdict: Number(values.verdict ?? '1'),
+      evidenceHash: String(values['evidence-hash'] ?? ''),
+      metadataHash: String(values['metadata-hash'] ?? ''),
+    });
+    try { await ctx.wallet.close?.(); } catch { /* ignore */ }
+    process.exit(0);
+  }
 
   if (values.loop) {
     await runLoop(walletProvider, cfg, addr);

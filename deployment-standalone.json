@@ -2,37 +2,37 @@
   "network": "standalone",
   "networkId": "undeployed",
   "walletAddress": "mn_addr_undeployed1h3ssm5ru2t6eqy4g3she78zlxn96e36ms6pq996aduvmateh9p9sk96u7s",
-  "deployedAt": "2026-05-29T23:25:14.315Z",
+  "deployedAt": "2026-05-30T00:05:15.416Z",
   "contracts": [
     {
       "name": "AgentRegistry",
-      "contractAddress": "597a1f914894a6d847989477e6a90390043ffb43c8abd00a18c8b419bf992d33",
-      "blockHeight": 2303,
-      "txId": "00c8469afcffdd4834cd32f4298e24dab30323280fbc79ac66b9104bd1a98da5a4"
+      "contractAddress": "fd795ef8dafd74afe7ddee02a53d171b8c583e7f13fa13a5d74105f3297e82f7",
+      "blockHeight": 2701,
+      "txId": "003e55a361e0345e4a51ae0f942eb78f5abf9bdaaf0cfa580c5f0c55305899e84d"
     },
     {
       "name": "AgentWalletFactory",
-      "contractAddress": "9eebe49bc20ba3c3e7b96fe33e16690239ca047e26717df97aea9756cac50af0",
-      "blockHeight": 2307,
-      "txId": "00b030a8b23dd9fc256895b829369dc38580775d4419a0d62414aa4f879c00b1c6"
+      "contractAddress": "606065abf562c38cdbb935d64d3bbda10e8292bb356d2004ce5f501ebdbad97c",
+      "blockHeight": 2705,
+      "txId": "00107ae38582d835fb25588e91ed2ccd86fb4eb5dee2386033d8136c465cd9f772"
     },
     {
       "name": "ComplianceRegistry",
-      "contractAddress": "9a08a983747ab9d2aabc0799bc8dc342ed8ad9a99197efd876190dfad30efe0b",
-      "blockHeight": 2310,
-      "txId": "007a104ce084a19013293def16eb772893b9871b421b26211007ada6eea278216b"
+      "contractAddress": "e605449bbf6bcf11d7878c1b59f5faf2bc932570f1d249988cc8e008b7d3807b",
+      "blockHeight": 2709,
+      "txId": "00b1a200e63317cdc7bd5fa4612bf44d0db7c49c836ab36ebb48f72cb6b4389328"
     },
     {
       "name": "FeeDistributor",
-      "contractAddress": "c46886278f8b391ed527f632d662b01c4e95bcceba9456fe6592f6bf009e92a4",
-      "blockHeight": 2313,
-      "txId": "003368f8f6c784a92eb47f04cc63d82d1e4765c55bf68edfd570f96f02ee1a0bda"
+      "contractAddress": "e3b83bf2034f231f12e9e998f839ceb44d07e960967f0b6add0d70972582e18f",
+      "blockHeight": 2712,
+      "txId": "008c5968fb16e0c3f00e575e80decc33605cc8b0770c00a03c5988a541d77d10d6"
     },
     {
       "name": "PaymentGateway",
-      "contractAddress": "f81313ccce904cf0a4893ccf57aea0da145fc9c459ac99eee92c7efbba835552",
-      "blockHeight": 2316,
-      "txId": "00445b98352ce5cd8709bd972eb65b471efcf3d609bc1845068fa86db38cfc0338"
+      "contractAddress": "929db823f3c7fa5a3ded5167f33c2aa3bc185392df5d326ab0c32f17da8c3a26",
+      "blockHeight": 2716,
+      "txId": "00e396a74e2710a6f1d12e88e87324d27a807da34e9d054f173a99efc8775fe02c"
     }
   ]
 }
